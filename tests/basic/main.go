@@ -36,6 +36,8 @@ func main() {
 	}
 	onlineconf.MustInitGlobalConfig(params, &cfg)
 
+	printConfig()
+
 	go func() {
 		tick := time.Tick(7 * time.Second)
 		for {
@@ -51,9 +53,9 @@ func main() {
 }
 
 func printConfig() {
-	cfg, ok := onlineconf.GlobalConfig().(Config)
+	cfg, ok := onlineconf.GlobalConfig().(*Config)
 	if !ok {
-		log.Fatalln("cant cast to config")
+		log.Fatalln("can't cast interface")
 	}
-	fmt.Printf("config: %+v\n", cfg)
+	fmt.Printf("config: %#v %+v\n", cfg, cfg)
 }

@@ -14,9 +14,7 @@ import (
 	"github.com/narqo/onlineconf"
 )
 
-type Config struct {
-	Test1 string `onlineconf:"test1"`
-}
+var testVar1 = onlineconf.Var("test1", "default value", "test var 1")
 
 func main() {
 	errc := make(chan error, 1)
@@ -31,17 +29,16 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	var cfg Config
-
 	params := &onlineconf.Params{
 		File: cfgFile,
 	}
-	onlineconf.MustInitGlobalConfig(params, &cfg)
+	onlineconf.MustInitGlobalConfig(params)
 
 	http.HandleFunc("/", handleRequest)
 
 	go func() {
 		addr := ":8080"
+		fmt.Printf("listening http: %s\n", addr)
 		errc <- http.ListenAndServe(addr, nil)
 	}()
 
@@ -60,25 +57,18 @@ func main() {
 }
 
 func handleRequest(w http.ResponseWriter, r *http.Request) {
-	var reqCfg = new(Config)
-	pcfg, ok := onlineconf.GlobalConfig().(*Config)
-	if !ok {
-		log.Println("this should not happen")
-	}
-	*reqCfg = *pcfg
-
 	ctx := context.Background()
-	ctx = onlineconf.ContextWithConfig(ctx, reqCfg)
+	ctx = onlineconf.ContextWithConfig(ctx)
 
 	handleEndpoint(ctx, w, r)
 }
 
 func handleEndpoint(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	cfg := onlineconf.ConfigFromContext(ctx).(*Config)
+	v1, _ := testVar1.Get(ctx)
 
-	fmt.Printf("1 req: %s config: %+v\n", r.URL.Path, cfg)
+	fmt.Printf("1 req: %s config: %+v\n", r.URL.Path, v1)
 	time.Sleep(10 * time.Second)
-	fmt.Printf("2 req: %s config: %+v\n", r.URL.Path, cfg)
+	fmt.Printf("2 req: %s config: %+v\n", r.URL.Path, v1)
 
-	fmt.Fprint(w, cfg.Test1)
+	fmt.Fprint(w, v1)
 }

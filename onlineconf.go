@@ -19,6 +19,11 @@ var (
 
 var defaultCheckInterval = 5 * time.Second
 
+type OnlineConf interface {
+	Config() map[string]interface{}
+	Close() error
+}
+
 type Params struct {
 	File          string
 	CheckInterval time.Duration
@@ -31,14 +36,14 @@ type onlineConf struct {
 	checkInterval time.Duration
 	maxErrors     int
 
-	config interface{}
+	rawConfig *Config
 
 	mu      sync.RWMutex
 	watcher *fsnotify.Watcher
 	done    chan struct{}
 }
 
-func newOnlineConf(params *Params, v interface{}) (*onlineConf, error) {
+func New(params *Params) (OnlineConf, error) {
 	filename := filepath.Clean(params.File)
 
 	watcher, err := fsnotify.NewWatcher()
@@ -47,7 +52,6 @@ func newOnlineConf(params *Params, v interface{}) (*onlineConf, error) {
 	}
 
 	c := &onlineConf{
-		config:        v,
 		filename:      filename,
 		watcher:       watcher,
 		checkInterval: params.CheckInterval,
@@ -63,6 +67,8 @@ func newOnlineConf(params *Params, v interface{}) (*onlineConf, error) {
 		return nil, err
 	}
 
+	go c.watch()
+
 	return c, nil
 }
 
@@ -72,17 +78,18 @@ func (c *onlineConf) readConfig() error {
 		return err
 	}
 	c.mu.Lock()
-	c.unmarshalConfig(config)
+	c.rawConfig = config
+	fmt.Printf("re-read file: %s version: %v\n", c.filename, config.Version)
 	c.mu.Unlock()
 	return nil
 }
-
-func (c *onlineConf) unmarshalConfig(rawConfig *Config) error {
-	if rawConfig == nil || len(rawConfig.Data) == 0 {
-		return ErrEmptyConfig
-	}
-	return unmarshalConfigData(rawConfig.Data, c.config)
-}
+//
+//func (c *onlineConf) unmarshalConfig(rawConfig *Config) error {
+//	if rawConfig == nil || len(rawConfig.Data) == 0 {
+//		return ErrEmptyConfig
+//	}
+//	return unmarshalConfigData(rawConfig.Data, c.config)
+//}
 
 func (c *onlineConf) watch() {
 	filedir, _ := filepath.Split(c.filename)
@@ -138,10 +145,10 @@ func (c *onlineConf) watch() {
 	}
 }
 
-func (c *onlineConf) Config() interface{} {
+func (c *onlineConf) Config() map[string]interface{} {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.config
+	return c.rawConfig.Data
 }
 
 func (c *onlineConf) Close() error {
@@ -254,22 +261,21 @@ func processField(value string, field reflect.Value) error {
 	return nil
 }
 
-var globalConf *onlineConf
+var globalConf OnlineConf
 
-func InitGlobalConfig(params *Params, v interface{}) (err error) {
-	globalConf, err = newOnlineConf(params, v)
-	go globalConf.watch()
-	return
+func InitGlobalConfig(params *Params) error {
+	var err error
+	globalConf, err = New(params)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func MustInitGlobalConfig(params *Params, v interface{}) {
-	if err := InitGlobalConfig(params, v); err != nil {
+func MustInitGlobalConfig(params *Params) {
+	if err := InitGlobalConfig(params); err != nil {
 		panic(err)
 	}
-}
-
-func GlobalConfig() interface{} {
-	return globalConf.Config()
 }
 
 func CloseGlobalConfig() error {

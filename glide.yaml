@@ -1,0 +1,4 @@
+package: github.com/narqo/onlineconf
+import:
+- package: github.com/fsnotify/fsnotify
+  version: v1.4.2

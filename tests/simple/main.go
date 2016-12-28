@@ -14,7 +14,9 @@ import (
 	"github.com/narqo/onlineconf"
 )
 
-var testVar1 = onlineconf.Var("test1", "default value", "test var 1")
+var testVar1 = onlineconf.String("test1", "default value", "test var 1")
+var testVar2 = onlineconf.Int("test2", 100, "test var 2")
+var testVar3 = onlineconf.Bool("test3", true, "test var 3")
 
 func main() {
 	errc := make(chan error, 1)
@@ -24,15 +26,12 @@ func main() {
 		errc <- fmt.Errorf("%s", <-c)
 	}()
 
-	cfgFile, err := filepath.Abs("tests/basic/onlineconf.conf")
+	cfgFile, err := filepath.Abs("tests/onlineconf.conf")
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	params := &onlineconf.Params{
-		File: cfgFile,
-	}
-	onlineconf.MustInitGlobalConfig(params)
+	onlineconf.MustInit(cfgFile, nil)
 
 	http.HandleFunc("/", handleRequest)
 
@@ -64,11 +63,17 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleEndpoint(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	v1, _ := testVar1.Get(ctx)
+	v1 := testVar1.Get(ctx)
+	v2 := testVar2.Get(ctx)
+	v3 := testVar3.Get(ctx)
+	fmt.Println("req:", r.URL.Path, "var1:", v1, "var2:", v2, "var3:", v3)
 
-	fmt.Printf("1 req: %s config: %+v\n", r.URL.Path, v1)
 	time.Sleep(10 * time.Second)
-	fmt.Printf("2 req: %s config: %+v\n", r.URL.Path, v1)
+
+	v1 = testVar1.Get(ctx)
+	v2 = testVar2.Get(ctx)
+	v3 = testVar3.Get(ctx)
+	fmt.Println("after req:", r.URL.Path, "var1:", v1, "var2:", v2, "var3:", v3)
 
 	fmt.Fprint(w, v1)
 }
